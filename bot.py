@@ -20,8 +20,8 @@ import jdatetime
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_USERNAME = "@chishoeh"
 CHANNEL_LINK = "https://t.me/chishoeh"
-ADMIN_IDS = [6218785645]
-ADMIN_USERNAME = "@alrznsb"
+ADMIN_IDS = [6218785645]  # ← فقط برای ارسال پیام، کاربر نمی‌بینش
+ADMIN_USERNAME = "@alrznsb"  # ← برای نمایش در /contact
 
 USERS_FILE = Path("users.json")
 
@@ -58,25 +58,22 @@ async def is_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         return False
 
-# ============ دکمه عضویت ============
+# ============ دکمه‌ها ============
 def join_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 عضویت در کانال چی شده؟", url=CHANNEL_LINK)],
         [InlineKeyboardButton("✅ عضو شدم", callback_data="check_join")]
     ])
 
-# ============ دکمه‌های منوی اصلی ============
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 اطلاعات", callback_data="menu_info"),
          InlineKeyboardButton("🛠 ابزار", callback_data="menu_tools")],
-        [InlineKeyboardButton("📥 دانلودر", callback_data="menu_download"),
-         InlineKeyboardButton("📖 راهنما", callback_data="menu_help")],
-        [InlineKeyboardButton("ℹ️ درباره ربات", callback_data="menu_about"),
-         InlineKeyboardButton("📞 تماس با ما", callback_data="menu_contact")],
+        [InlineKeyboardButton("📩 پشتیبانی", callback_data="menu_support"),
+         InlineKeyboardButton("ℹ️ درباره ربات", callback_data="menu_about")],
+        [InlineKeyboardButton("📞 تماس با ما", callback_data="menu_contact")],
     ])
 
-# ============ متن خوش‌آمد ============
 def welcome_text(first_name):
     return (
         f"سلام {first_name} عزیز 👋\n\n"
@@ -84,7 +81,7 @@ def welcome_text(first_name):
         "اینجا هر چی بخوای هست:\n"
         "📊 اطلاعات\n"
         "🛠 ابزار کاربردی\n"
-        "📥 دانلود از شبکه‌های اجتماعی\n\n"
+        "📩 پشتیبانی\n\n"
         "از منوی زیر انتخاب کن 👇"
     )
 
@@ -125,9 +122,10 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔹 /time — ساعت و تاریخ\n"
         "🔹 /id — آیدی عددی شما\n"
         "🔹 /password — ساخت رمز قوی\n"
-        "🔹 /calc — ماشین حساب (مثال: /calc 2+3)\n"
-        "🔹 /qr — ساخت QR کد (مثال: /qr سلام)\n"
-        "🔹 /remind — یادآور (مثال: /remind 10 متن)\n"
+        "🔹 /calc — ماشین حساب\n"
+        "🔹 /qr — ساخت QR کد\n"
+        "🔹 /remind — یادآور\n"
+        "🔹 /support — پشتیبانی\n"
         "🔹 /about — درباره ربات\n"
         "🔹 /contact — تماس با ما\n"
     )
@@ -136,6 +134,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "\n🔐 **دستورات ادمین:**\n"
             "🔸 /stats — آمار کاربران\n"
             "🔸 /broadcast متن — پیام همگانی\n"
+            "🔸 /reply آیدی متن — پاسخ به کاربر\n"
         )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -143,10 +142,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "ℹ️ **درباره ربات 42 ++**\n\n"
-        "ربات 42 ++ یک ربات همه‌کاره تلگرامیه که "
-        "ابزارهای کاربردی، اطلاعات و دانلودر رو در اختیارت می‌ذاره.\n\n"
-        f"📢 کانال ما: {CHANNEL_USERNAME}\n"
-        f"👤 ادمین: {ADMIN_USERNAME}"
+        "ربات 42 ++ یک ربات همه‌کاره تلگرامیه.\n\n"
+        f"📢 کانال ما: {CHANNEL_USERNAME}"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -154,9 +151,8 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "📞 **راه‌های ارتباطی**\n\n"
-        f"👤 ادمین: {ADMIN_USERNAME}\n"
         f"📢 کانال: {CHANNEL_USERNAME}\n\n"
-        "برای ارتباط با ادمین، به آیدی بالا پیام بده."
+        "برای ارتباط با پشتیبانی، از دستور /support استفاده کن."
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -248,7 +244,7 @@ async def qr_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text(
-            "مثال:\n`/remind 10 سلام کردن`\n(۱۰ دقیقه دیگه یادآوری کن)",
+            "مثال:\n`/remind 10 سلام کردن`",
             parse_mode="Markdown"
         )
         return
@@ -276,6 +272,79 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
         text=f"⏰ **یادآوری:**\n{job.data['text']}",
         parse_mode="Markdown"
     )
+
+# ============ دستور /support ============
+async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📩 **پشتیبانی**\n\n"
+        "پیامت رو بنویس، برای تیم پشتیبانی می‌فرستم.\n\n"
+        "⚠️ پیامت رو با متن معمولی بنویس (بدون دستور).",
+        parse_mode="Markdown"
+    )
+    context.user_data["waiting_for_support"] = True
+
+# ============ پردازش پیام پشتیبانی ============
+async def handle_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("waiting_for_support"):
+        return
+
+    if not await is_member(update, context):
+        await update.message.reply_text(
+            "⚠️ اول توی کانال عضو شو:",
+            reply_markup=join_keyboard()
+        )
+        return
+
+    user = update.effective_user
+    text = update.message.text
+
+    # ارسال به ادمین
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=f"📩 **پیام پشتیبانی جدید**\n\n"
+                     f"👤 از: {user.first_name}\n"
+                     f"🆔 آیدی: `{user.id}`\n"
+                     f"📛 یوزرنیم: @{user.username if user.username else 'نداری'}\n\n"
+                     f"💬 پیام:\n{text}\n\n"
+                     f"📌 برای پاسخ:\n"
+                     f"`/reply {user.id} متن جواب`",
+                parse_mode="Markdown"
+            )
+        except:
+            pass
+
+    await update.message.reply_text(
+        "✅ پیامت برای تیم پشتیبانی ارسال شد.\n"
+        "به‌زودی جواب می‌گیری."
+    )
+    context.user_data["waiting_for_support"] = False
+
+# ============ دستور /reply (ادمین) ============
+async def reply_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS:
+        return
+
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "مثال:\n`/reply 123456789 سلام، مشکل حل شد.`",
+            parse_mode="Markdown"
+        )
+        return
+
+    try:
+        user_id = int(context.args[0])
+        text = " ".join(context.args[1:])
+
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=f"📩 **پاسخ پشتیبانی:**\n\n{text}",
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text("✅ پاسخ ارسال شد.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا: {e}")
 
 # ============ دستور /stats (ادمین) ============
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -350,8 +419,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             "📊 **اطلاعات**\n\n"
             "🔹 /time — ساعت و تاریخ\n"
-            "🔹 /id — آیدی عددی شما\n\n"
-            "به‌زودی: نرخ ارز، آب و هوا، اخبار",
+            "🔹 /id — آیدی عددی شما",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
@@ -371,22 +439,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-    elif query.data == "menu_download":
+    elif query.data == "menu_support":
         await query.edit_message_text(
-            "📥 **دانلودر**\n\n"
-            "🔹 اینستاگرام\n"
-            "🔹 یوتیوب\n"
-            "🔹 تیک‌تاک\n\n"
-            "⚠️ به‌زودی اضافه میشه!",
+            "📩 **پشتیبانی**\n\n"
+            "با دستور /support پیامت رو برای تیم پشتیبانی بفرست.",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
-            ])
-        )
-
-    elif query.data == "menu_help":
-        await query.edit_message_text(
-            "📖 برای دیدن راهنما، دستور /help رو بزن.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
             ])
@@ -406,8 +463,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "menu_contact":
         await query.edit_message_text(
             f"📞 **تماس با ما**\n\n"
-            f"👤 ادمین: {ADMIN_USERNAME}\n"
-            f"📢 کانال: {CHANNEL_USERNAME}",
+            f"📢 کانال: {CHANNEL_USERNAME}\n\n"
+            "برای پشتیبانی، /support رو بزن.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
@@ -424,6 +481,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============ هندلر پیام‌های عادی ============
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(update.effective_user.id)
+
+    # اگه کاربر منتظر پشتیبانی باشه
+    if context.user_data.get("waiting_for_support"):
+        if update.message.text:
+            await handle_support(update, context)
+        return
 
     if not await is_member(update, context):
         await update.message.reply_text(
@@ -452,10 +515,12 @@ def main():
     app.add_handler(CommandHandler("calc", calc))
     app.add_handler(CommandHandler("qr", qr_cmd))
     app.add_handler(CommandHandler("remind", remind))
+    app.add_handler(CommandHandler("support", support))
+    app.add_handler(CommandHandler("reply", reply_cmd))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("broadcast", broadcast))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
     print("ربات روشن شد")
     app.run_polling()
