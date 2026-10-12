@@ -1,5 +1,13 @@
 import os
 import sys
+
+# نصب خودکار کتابخانه‌ها قبل از import
+os.system(f"{sys.executable} -m pip install python-telegram-bot==22.8")
+os.system(f"{sys.executable} -m pip install qrcode[pil]")
+os.system(f"{sys.executable} -m pip install jdatetime")
+os.system(f"{sys.executable} -m pip install requests")
+os.system(f"{sys.executable} -m pip install beautifulsoup4")
+
 import json
 import random
 import string
