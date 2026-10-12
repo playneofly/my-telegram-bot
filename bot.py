@@ -1,5 +1,4 @@
 import os
-import subprocess
 import sys
 import json
 import random
@@ -8,12 +7,6 @@ import requests
 from pathlib import Path
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-
-subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==22.8"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "qrcode[pil]"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "jdatetime"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "beautifulsoup4"])
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, CallbackQueryHandler, filters
@@ -60,7 +53,6 @@ def get_price_tgju(item_name):
         response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # جستجو در جدول‌های tgju
         for row in soup.find_all("tr"):
             cells = row.find_all("td")
             if len(cells) >= 2:
@@ -79,7 +71,6 @@ def get_price_arzdigital(item_name):
         response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # جستجو در جدول arzdigital
         for row in soup.find_all("tr"):
             cells = row.find_all("td")
             if len(cells) >= 2:
@@ -98,15 +89,12 @@ def get_price_chandshode(item_name):
         response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # جستجو در تگ‌های chandshode
         for tag in soup.find_all(["h3", "h4", "h5", "span", "div"]):
             text = tag.get_text(strip=True)
             if item_name in text:
-                # پیدا کردن قیمت نزدیک
                 parent = tag.find_parent()
                 if parent:
                     price_text = parent.get_text(strip=True)
-                    # استخراج عدد
                     import re
                     numbers = re.findall(r'[\d,]+', price_text)
                     if numbers:
@@ -222,6 +210,29 @@ async def price_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "دنبال قیمت چه چیزی هستی؟",
         reply_markup=prices_keyboard()
     )
+
+# ============ نمایش قیمت ============
+async def show_price(query, context, item_name, title):
+    await query.edit_message_text("⏳ در حال جستجو در سایت‌ها...")
+
+    results = get_all_prices(item_name)
+
+    text = f"**{title}**\n\n"
+    for site, price in results.items():
+        if price:
+            text += f"✅ {site}: {price}\n"
+        else:
+            text += f"❌ {site}: پیدا نشد\n"
+
+    now = datetime.now().strftime("%H:%M")
+    text += f"\n🕐 آخرین بروزرسانی: {now}"
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"refresh_{item_name}")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_prices")]
+    ])
+
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
 # ============ هندلر دکمه‌ها ============
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -344,29 +355,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("refresh_"):
         item = query.data.replace("refresh_", "")
         await show_price(query, context, item, f"🔄 بروزرسانی قیمت {item}")
-
-# ============ نمایش قیمت ============
-async def show_price(query, context, item_name, title):
-    await query.edit_message_text("⏳ در حال جستجو در سایت‌ها...")
-
-    results = get_all_prices(item_name)
-
-    text = f"**{title}**\n\n"
-    for site, price in results.items():
-        if price:
-            text += f"✅ {site}: {price}\n"
-        else:
-            text += f"❌ {site}: پیدا نشد\n"
-
-    now = datetime.now().strftime("%H:%M")
-    text += f"\n🕐 آخرین بروزرسانی: {now}"
-
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"refresh_{item_name}")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_prices")]
-    ])
-
-    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
 # ============ دستور /time ============
 async def time_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
