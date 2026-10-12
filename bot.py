@@ -1,6 +1,13 @@
 import os
-import subprocess
 import sys
+
+# نصب خودکار کتابخانه‌ها قبل از import
+os.system(f"{sys.executable} -m pip install requests")
+os.system(f"{sys.executable} -m pip install beautifulsoup4")
+os.system(f"{sys.executable} -m pip install python-telegram-bot==22.8")
+os.system(f"{sys.executable} -m pip install qrcode[pil]")
+os.system(f"{sys.executable} -m pip install jdatetime")
+
 import json
 import random
 import string
@@ -9,12 +16,6 @@ import requests
 from pathlib import Path
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-
-subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==22.8"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "qrcode[pil]"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "jdatetime"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
-subprocess.check_call([sys.executable, "-m", "pip", "install", "beautifulsoup4"])
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, CallbackQueryHandler, filters
