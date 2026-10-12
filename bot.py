@@ -4,12 +4,16 @@ import sys
 import json
 import random
 import string
+import requests
 from pathlib import Path
 from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
 
 subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==22.8"])
 subprocess.check_call([sys.executable, "-m", "pip", "install", "qrcode[pil]"])
 subprocess.check_call([sys.executable, "-m", "pip", "install", "jdatetime"])
+subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+subprocess.check_call([sys.executable, "-m", "pip", "install", "beautifulsoup4"])
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, CallbackQueryHandler, filters
@@ -20,10 +24,14 @@ import jdatetime
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_USERNAME = "@chishoeh"
 CHANNEL_LINK = "https://t.me/chishoeh"
-ADMIN_IDS = [6218785645]  # ← فقط برای ارسال پیام، کاربر نمی‌بینش
-ADMIN_USERNAME = "@alrznsb"  # ← برای نمایش در /contact
+ADMIN_IDS = [6218785645]
+ADMIN_USERNAME = "@alrznsb"
 
 USERS_FILE = Path("users.json")
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
 
 # ============ توابع کمکی ============
 def load_users():
@@ -42,6 +50,79 @@ def add_user(user_id):
     if user_id not in users:
         users.add(user_id)
         save_users(users)
+
+# ============ استخراج قیمت‌ها ============
+
+def get_price_tgju(item_name):
+    """گرفتن قیمت از tgju.org"""
+    try:
+        url = "https://www.tgju.org"
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # جستجو در جدول‌های tgju
+        for row in soup.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) >= 2:
+                name = cells[0].get_text(strip=True)
+                if item_name in name:
+                    price = cells[1].get_text(strip=True)
+                    return price
+        return None
+    except Exception as e:
+        return None
+
+def get_price_arzdigital(item_name):
+    """گرفتن قیمت از arzdigital.com"""
+    try:
+        url = "https://arzdigital.com/currencies/"
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # جستجو در جدول arzdigital
+        for row in soup.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) >= 2:
+                name = cells[0].get_text(strip=True)
+                if item_name in name:
+                    price = cells[1].get_text(strip=True)
+                    return price
+        return None
+    except Exception as e:
+        return None
+
+def get_price_chandshode(item_name):
+    """گرفتن قیمت از chandshode.com"""
+    try:
+        url = "https://chandshode.com"
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # جستجو در تگ‌های chandshode
+        for tag in soup.find_all(["h3", "h4", "h5", "span", "div"]):
+            text = tag.get_text(strip=True)
+            if item_name in text:
+                # پیدا کردن قیمت نزدیک
+                parent = tag.find_parent()
+                if parent:
+                    price_text = parent.get_text(strip=True)
+                    # استخراج عدد
+                    import re
+                    numbers = re.findall(r'[\d,]+', price_text)
+                    if numbers:
+                        return numbers[0] + " تومان"
+        return None
+    except Exception as e:
+        return None
+
+def get_all_prices(item_name):
+    """گرفتن قیمت از هر سه سایت"""
+    results = {
+        "tgju.org": get_price_tgju(item_name),
+        "arzdigital.com": get_price_arzdigital(item_name),
+        "chandshode.com": get_price_chandshode(item_name),
+    }
+    return results
 
 # ============ بررسی عضویت ============
 async def is_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -67,11 +148,24 @@ def join_keyboard():
 
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 اطلاعات", callback_data="menu_info"),
-         InlineKeyboardButton("🛠 ابزار", callback_data="menu_tools")],
-        [InlineKeyboardButton("📩 پشتیبانی", callback_data="menu_support"),
-         InlineKeyboardButton("ℹ️ درباره ربات", callback_data="menu_about")],
-        [InlineKeyboardButton("📞 تماس با ما", callback_data="menu_contact")],
+        [InlineKeyboardButton("💰 قیمت‌ها", callback_data="menu_prices"),
+         InlineKeyboardButton("📊 اطلاعات", callback_data="menu_info")],
+        [InlineKeyboardButton("🛠 ابزار", callback_data="menu_tools"),
+         InlineKeyboardButton("📩 پشتیبانی", callback_data="menu_support")],
+        [InlineKeyboardButton("ℹ️ درباره ربات", callback_data="menu_about"),
+         InlineKeyboardButton("📞 تماس با ما", callback_data="menu_contact")],
+    ])
+
+def prices_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💵 دلار", callback_data="price_dollar")],
+        [InlineKeyboardButton("🪙 تتر", callback_data="price_tether"),
+         InlineKeyboardButton("🥇 طلا", callback_data="price_gold")],
+        [InlineKeyboardButton("💶 یورو", callback_data="price_euro"),
+         InlineKeyboardButton("🪙 سکه", callback_data="price_coin")],
+        [InlineKeyboardButton("💷 پوند", callback_data="price_pound"),
+         InlineKeyboardButton("📊 بقیه ارزها", callback_data="price_others")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")],
     ])
 
 def welcome_text(first_name):
@@ -79,6 +173,7 @@ def welcome_text(first_name):
         f"سلام {first_name} عزیز 👋\n\n"
         "به ربات **42 ++** خوش اومدی 🌹\n\n"
         "اینجا هر چی بخوای هست:\n"
+        "💰 قیمت لحظه‌ای ارز و طلا\n"
         "📊 اطلاعات\n"
         "🛠 ابزار کاربردی\n"
         "📩 پشتیبانی\n\n"
@@ -113,48 +208,165 @@ async def join(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=join_keyboard()
     )
 
-# ============ دستور /help ============
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "📖 **راهنمای ربات 42 ++**\n\n"
-        "🔹 /start — شروع و منوی اصلی\n"
-        "🔹 /join — عضویت در کانال\n"
-        "🔹 /time — ساعت و تاریخ\n"
-        "🔹 /id — آیدی عددی شما\n"
-        "🔹 /password — ساخت رمز قوی\n"
-        "🔹 /calc — ماشین حساب\n"
-        "🔹 /qr — ساخت QR کد\n"
-        "🔹 /remind — یادآور\n"
-        "🔹 /support — پشتیبانی\n"
-        "🔹 /about — درباره ربات\n"
-        "🔹 /contact — تماس با ما\n"
-    )
-    if update.effective_user.id in ADMIN_IDS:
-        text += (
-            "\n🔐 **دستورات ادمین:**\n"
-            "🔸 /stats — آمار کاربران\n"
-            "🔸 /broadcast متن — پیام همگانی\n"
-            "🔸 /reply آیدی متن — پاسخ به کاربر\n"
+# ============ دستور /price ============
+async def price_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_member(update, context):
+        await update.message.reply_text(
+            "⚠️ اول توی کانال عضو شو:",
+            reply_markup=join_keyboard()
         )
-    await update.message.reply_text(text, parse_mode="Markdown")
+        return
 
-# ============ دستور /about ============
-async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "ℹ️ **درباره ربات 42 ++**\n\n"
-        "ربات 42 ++ یک ربات همه‌کاره تلگرامیه.\n\n"
-        f"📢 کانال ما: {CHANNEL_USERNAME}"
+    await update.message.reply_text(
+        "درود بر شما 🌹\n"
+        "دنبال قیمت چه چیزی هستی؟",
+        reply_markup=prices_keyboard()
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
 
-# ============ دستور /contact ============
-async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "📞 **راه‌های ارتباطی**\n\n"
-        f"📢 کانال: {CHANNEL_USERNAME}\n\n"
-        "برای ارتباط با پشتیبانی، از دستور /support استفاده کن."
-    )
-    await update.message.reply_text(text, parse_mode="Markdown")
+# ============ هندلر دکمه‌ها ============
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "check_join":
+        if await is_member(update, context):
+            await query.edit_message_text(
+                welcome_text(update.effective_user.first_name),
+                reply_markup=main_menu_keyboard(),
+                parse_mode="Markdown"
+            )
+        else:
+            await query.edit_message_text(
+                "❌ هنوز عضو نشدی!\n\n"
+                "اول توی کانال عضو شو، بعد دوباره روی «عضو شدم» بزن.",
+                reply_markup=join_keyboard()
+            )
+
+    elif query.data == "menu_prices":
+        await query.edit_message_text(
+            "درود بر شما 🌹\n"
+            "دنبال قیمت چه چیزی هستی؟",
+            reply_markup=prices_keyboard()
+        )
+
+    elif query.data == "price_dollar":
+        await show_price(query, context, "دلار", "💵 قیمت دلار")
+
+    elif query.data == "price_tether":
+        await show_price(query, context, "تتر", "🪙 قیمت تتر")
+
+    elif query.data == "price_gold":
+        await show_price(query, context, "طلای 18", "🥇 قیمت طلا")
+
+    elif query.data == "price_euro":
+        await show_price(query, context, "یورو", "💶 قیمت یورو")
+
+    elif query.data == "price_coin":
+        await show_price(query, context, "سکه امامی", "🪙 قیمت سکه")
+
+    elif query.data == "price_pound":
+        await show_price(query, context, "پوند", "💷 قیمت پوند")
+
+    elif query.data == "price_others":
+        await query.edit_message_text(
+            "📊 **بقیه ارزها**\n\n"
+            "برای دیدن لیست کامل، به کانال ما سر بزن:\n"
+            f"{CHANNEL_LINK}",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_prices")]
+            ])
+        )
+
+    elif query.data == "menu_info":
+        await query.edit_message_text(
+            "📊 **اطلاعات**\n\n"
+            "🔹 /time — ساعت و تاریخ\n"
+            "🔹 /id — آیدی عددی شما",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
+            ])
+        )
+
+    elif query.data == "menu_tools":
+        await query.edit_message_text(
+            "🛠 **ابزار کاربردی**\n\n"
+            "🔹 /password — ساخت رمز قوی\n"
+            "🔹 /calc — ماشین حساب\n"
+            "🔹 /qr — ساخت QR کد\n"
+            "🔹 /remind — یادآور",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
+            ])
+        )
+
+    elif query.data == "menu_support":
+        await query.edit_message_text(
+            "📩 **پشتیبانی**\n\n"
+            "با دستور /support پیامت رو برای تیم پشتیبانی بفرست.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
+            ])
+        )
+
+    elif query.data == "menu_about":
+        await query.edit_message_text(
+            "ℹ️ **درباره ربات 42 ++**\n\n"
+            "ربات 42 ++ یک ربات همه‌کاره تلگرامیه.\n\n"
+            f"📢 کانال: {CHANNEL_USERNAME}",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
+            ])
+        )
+
+    elif query.data == "menu_contact":
+        await query.edit_message_text(
+            f"📞 **تماس با ما**\n\n"
+            f"📢 کانال: {CHANNEL_USERNAME}\n\n"
+            "برای پشتیبانی، /support رو بزن.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
+            ])
+        )
+
+    elif query.data == "menu_back":
+        await query.edit_message_text(
+            welcome_text(update.effective_user.first_name),
+            reply_markup=main_menu_keyboard(),
+            parse_mode="Markdown"
+        )
+
+    elif query.data.startswith("refresh_"):
+        item = query.data.replace("refresh_", "")
+        await show_price(query, context, item, f"🔄 بروزرسانی قیمت {item}")
+
+# ============ نمایش قیمت ============
+async def show_price(query, context, item_name, title):
+    await query.edit_message_text("⏳ در حال جستجو در سایت‌ها...")
+
+    results = get_all_prices(item_name)
+
+    text = f"**{title}**\n\n"
+    for site, price in results.items():
+        if price:
+            text += f"✅ {site}: {price}\n"
+        else:
+            text += f"❌ {site}: پیدا نشد\n"
+
+    now = datetime.now().strftime("%H:%M")
+    text += f"\n🕐 آخرین بروزرسانی: {now}"
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"refresh_{item_name}")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_prices")]
+    ])
+
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
 # ============ دستور /time ============
 async def time_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,7 +510,6 @@ async def handle_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
 
-    # ارسال به ادمین
     for admin_id in ADMIN_IDS:
         try:
             await context.bot.send_message(
@@ -396,93 +607,10 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"❌ ناموفق: {failed}"
     )
 
-# ============ هندلر دکمه‌ها ============
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == "check_join":
-        if await is_member(update, context):
-            await query.edit_message_text(
-                welcome_text(update.effective_user.first_name),
-                reply_markup=main_menu_keyboard(),
-                parse_mode="Markdown"
-            )
-        else:
-            await query.edit_message_text(
-                "❌ هنوز عضو نشدی!\n\n"
-                "اول توی کانال عضو شو، بعد دوباره روی «عضو شدم» بزن.",
-                reply_markup=join_keyboard()
-            )
-
-    elif query.data == "menu_info":
-        await query.edit_message_text(
-            "📊 **اطلاعات**\n\n"
-            "🔹 /time — ساعت و تاریخ\n"
-            "🔹 /id — آیدی عددی شما",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
-            ])
-        )
-
-    elif query.data == "menu_tools":
-        await query.edit_message_text(
-            "🛠 **ابزار کاربردی**\n\n"
-            "🔹 /password — ساخت رمز قوی\n"
-            "🔹 /calc — ماشین حساب\n"
-            "🔹 /qr — ساخت QR کد\n"
-            "🔹 /remind — یادآور",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
-            ])
-        )
-
-    elif query.data == "menu_support":
-        await query.edit_message_text(
-            "📩 **پشتیبانی**\n\n"
-            "با دستور /support پیامت رو برای تیم پشتیبانی بفرست.",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
-            ])
-        )
-
-    elif query.data == "menu_about":
-        await query.edit_message_text(
-            "ℹ️ **درباره ربات 42 ++**\n\n"
-            "ربات 42 ++ یک ربات همه‌کاره تلگرامیه.\n\n"
-            f"📢 کانال: {CHANNEL_USERNAME}",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
-            ])
-        )
-
-    elif query.data == "menu_contact":
-        await query.edit_message_text(
-            f"📞 **تماس با ما**\n\n"
-            f"📢 کانال: {CHANNEL_USERNAME}\n\n"
-            "برای پشتیبانی، /support رو بزن.",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="menu_back")]
-            ])
-        )
-
-    elif query.data == "menu_back":
-        await query.edit_message_text(
-            welcome_text(update.effective_user.first_name),
-            reply_markup=main_menu_keyboard(),
-            parse_mode="Markdown"
-        )
-
 # ============ هندلر پیام‌های عادی ============
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(update.effective_user.id)
 
-    # اگه کاربر منتظر پشتیبانی باشه
     if context.user_data.get("waiting_for_support"):
         if update.message.text:
             await handle_support(update, context)
@@ -500,6 +628,50 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "برای دیدن دستورات، /help رو بزن."
     )
 
+# ============ دستور /help ============
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📖 **راهنمای ربات 42 ++**\n\n"
+        "🔹 /start — شروع و منوی اصلی\n"
+        "🔹 /join — عضویت در کانال\n"
+        "🔹 /price — قیمت‌های لحظه‌ای\n"
+        "🔹 /time — ساعت و تاریخ\n"
+        "🔹 /id — آیدی عددی شما\n"
+        "🔹 /password — ساخت رمز قوی\n"
+        "🔹 /calc — ماشین حساب\n"
+        "🔹 /qr — ساخت QR کد\n"
+        "🔹 /remind — یادآور\n"
+        "🔹 /support — پشتیبانی\n"
+        "🔹 /about — درباره ربات\n"
+        "🔹 /contact — تماس با ما\n"
+    )
+    if update.effective_user.id in ADMIN_IDS:
+        text += (
+            "\n🔐 **دستورات ادمین:**\n"
+            "🔸 /stats — آمار کاربران\n"
+            "🔸 /broadcast متن — پیام همگانی\n"
+            "🔸 /reply آیدی متن — پاسخ به کاربر\n"
+        )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+# ============ دستور /about ============
+async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "ℹ️ **درباره ربات 42 ++**\n\n"
+        "ربات 42 ++ یک ربات همه‌کاره تلگرامیه.\n\n"
+        f"📢 کانال ما: {CHANNEL_USERNAME}"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+# ============ دستور /contact ============
+async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📞 **راه‌های ارتباطی**\n\n"
+        f"📢 کانال: {CHANNEL_USERNAME}\n\n"
+        "برای ارتباط با پشتیبانی، از دستور /support استفاده کن."
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
 # ============ اجرا ============
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -509,6 +681,7 @@ def main():
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("about", about))
     app.add_handler(CommandHandler("contact", contact))
+    app.add_handler(CommandHandler("price", price_cmd))
     app.add_handler(CommandHandler("time", time_cmd))
     app.add_handler(CommandHandler("id", id_cmd))
     app.add_handler(CommandHandler("password", password_cmd))
