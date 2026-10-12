@@ -1,13 +1,25 @@
 import os
 import sys
+import subprocess
 
-# نصب خودکار کتابخانه‌ها قبل از import
-os.system(f"{sys.executable} -m pip install requests")
-os.system(f"{sys.executable} -m pip install beautifulsoup4")
-os.system(f"{sys.executable} -m pip install python-telegram-bot==22.8")
-os.system(f"{sys.executable} -m pip install qrcode[pil]")
-os.system(f"{sys.executable} -m pip install jdatetime")
+# ============ نصب خودکار کتابخانه‌ها ============
+def install_packages():
+    packages = [
+        "python-telegram-bot==22.8",
+        "qrcode[pil]",
+        "jdatetime",
+        "requests",
+        "beautifulsoup4",
+    ]
+    for pkg in packages:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+        except Exception as e:
+            print(f"خطا در نصب {pkg}: {e}")
 
+install_packages()
+
+# ============ ایمپورت‌ها ============
 import json
 import random
 import string
@@ -54,7 +66,6 @@ def add_user(user_id):
         save_users(users)
 
 # ============ استخراج قیمت‌ها ============
-
 def get_price_tgju(item_name):
     try:
         url = "https://www.tgju.org"
